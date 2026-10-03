@@ -1,0 +1,328 @@
+// This file is part of Moodle - https://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle. If not, see <http://www.gnu.org/licenses/>.
+
+/**
+ * Simple Video Tracker browser player.
+ *
+ * @module     mod_simplevideotracker/player
+ * @copyright  2026 onwards Simple Video Tracker contributors
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+
+import {call as fetchMany} from 'core/ajax';
+
+const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+const PLAYBACK_EPSILON = 0.05;
+const SAVE_EPSILON = 0.0005;
+
+export const init = (config) => {
+    const video = document.getElementById(config.playerId);
+    const status = document.getElementById(config.statusId);
+    const progressText = document.getElementById(config.progressId);
+    if (!video) {
+        return;
+    }
+
+    let serverAllowed = Number(config.allowedUntil) || 0;
+    let frontier = serverAllowed;
+    let segmentStart = Number(config.initialPosition) || 0;
+    let lastNaturalTime = segmentStart;
+    let lastWall = performance.now();
+    let saving = false;
+    let blockedSeek = false;
+    let metadataInitialised = false;
+    let retryTimer = null;
+    const saveQueue = [];
+
+    const heartbeatMs = Math.max(3, Number(config.heartbeat) || 5) * 1000;
+
+    const showStatus = (text) => {
+        if (status) {
+            status.textContent = text || '';
+        }
+    };
+
+    const updateProgress = (result) => {
+        if (progressText && result) {
+            progressText.textContent = `${config.strings.progress}: ${Number(result.progress).toFixed(1)}%`;
+        }
+    };
+
+    const clearRetry = () => {
+        if (retryTimer !== null) {
+            window.clearTimeout(retryTimer);
+            retryTimer = null;
+        }
+    };
+
+    const scheduleRetry = () => {
+        if (retryTimer !== null || saveQueue.length === 0) {
+            return;
+        }
+        retryTimer = window.setTimeout(() => {
+            retryTimer = null;
+            processQueue();
+        }, heartbeatMs);
+    };
+
+    const normaliseRange = (from, to, position) => {
+        const duration = video.duration;
+        const start = clamp(Number(from) || 0, 0, duration);
+        const end = clamp(Number(to) || 0, 0, duration);
+        return {
+            from: Math.min(start, end),
+            to: Math.max(start, end),
+            position: clamp(Number(position) || 0, 0, duration),
+            duration,
+        };
+    };
+
+    const enqueueRange = (from, to, position) => {
+        if (!Number.isFinite(video.duration) || video.duration <= 0) {
+            return;
+        }
+
+        const item = normaliseRange(from, to, position);
+        const lastIndex = saveQueue.length - 1;
+        const last = lastIndex >= 0 ? saveQueue[lastIndex] : null;
+        const lastIsInFlight = saving && lastIndex === 0;
+
+        // Coalesce adjacent natural-playback ranges which have not been sent yet.
+        if (last && !lastIsInFlight && Math.abs(last.to - item.from) <= PLAYBACK_EPSILON) {
+            last.to = Math.max(last.to, item.to);
+            last.position = item.position;
+            last.duration = item.duration;
+        } else if (item.to - item.from > SAVE_EPSILON || saveQueue.length === 0) {
+            saveQueue.push(item);
+        } else {
+            // Keep the newest resume position even when there is no watched interval to add.
+            saveQueue.push(item);
+        }
+
+        clearRetry();
+        processQueue();
+    };
+
+    const removeOrTrimCreditedRange = (item, result) => {
+        const creditedFrom = Number(result.creditedfrom) || 0;
+        const creditedTo = Number(result.creditedto) || 0;
+
+        if (item.to - item.from <= SAVE_EPSILON) {
+            return Boolean(result.accepted);
+        }
+
+        // The server credits a contiguous prefix of the submitted natural range.
+        // Trim only when that credited prefix reaches into this queued interval.
+        if (creditedTo > item.from + SAVE_EPSILON && creditedFrom <= item.from + SAVE_EPSILON) {
+            item.from = Math.min(item.to, creditedTo);
+        }
+
+        return Boolean(result.accepted) || item.to - item.from <= SAVE_EPSILON;
+    };
+
+    const handleRejectedSeek = (result) => {
+        if (!config.preventSeeking || result.accepted) {
+            return;
+        }
+
+        const allowed = clamp(Number(result.alloweduntil) || 0, 0, video.duration || 0);
+        const tolerance = Number(config.seekTolerance || 0);
+        const explicitlyBlocked = [
+            'ahead_of_verified_progress',
+            'position_ahead_of_verified_progress',
+        ].includes(result.reason);
+        if (!explicitlyBlocked && video.currentTime <= allowed + tolerance) {
+            return;
+        }
+
+        blockedSeek = true;
+        video.currentTime = allowed;
+        frontier = allowed;
+        segmentStart = allowed;
+        lastNaturalTime = allowed;
+        lastWall = performance.now();
+        showStatus(config.strings.seekblocked);
+    };
+
+    function processQueue() {
+        if (saving || saveQueue.length === 0) {
+            return;
+        }
+        if (!Number.isFinite(video.duration) || video.duration <= 0) {
+            return;
+        }
+
+        const item = saveQueue[0];
+        saving = true;
+        clearRetry();
+        showStatus(config.strings.saving);
+
+        const request = fetchMany([{
+            methodname: 'mod_simplevideotracker_save_progress',
+            args: {
+                cmid: config.cmid,
+                from: item.from,
+                to: item.to,
+                position: item.position,
+                duration: item.duration,
+            },
+        }])[0];
+
+        // core/ajax has returned both jQuery-style Deferred thenables and native/compatible
+        // Promises across supported Moodle generations. Assimilate either into a native
+        // Promise before using catch/finally so saving is always released.
+        Promise.resolve(request).then((result) => {
+            serverAllowed = Number(result.alloweduntil) || serverAllowed;
+            frontier = Math.max(frontier, serverAllowed);
+            updateProgress(result);
+
+            const finished = removeOrTrimCreditedRange(item, result);
+            if (finished) {
+                saveQueue.shift();
+            }
+
+            if (result.accepted) {
+                showStatus(config.strings.saved);
+            } else if (result.reason === 'capped_to_elapsed_time') {
+                showStatus(config.strings.savepartial || config.strings.saving);
+            } else if (result.reason === 'no_elapsed_time') {
+                showStatus(config.strings.savepending || config.strings.saving);
+            } else {
+                showStatus(config.strings.savefailed);
+            }
+
+            handleRejectedSeek(result);
+
+            // Invalid/stale media or a blocked seek cannot become valid by retrying
+            // the same payload. Only remove it if it is still the queue head.
+            if (saveQueue[0] === item && [
+                'duration_mismatch',
+                'duration_unset',
+                'ahead_of_verified_progress',
+                'position_ahead_of_verified_progress',
+            ].includes(result.reason)) {
+                saveQueue.shift();
+            }
+        }).catch(() => {
+            // Keep the exact queued range so a network failure cannot create a viewing gap.
+            showStatus(config.strings.savefailed);
+        }).finally(() => {
+            saving = false;
+            if (saveQueue.length > 0) {
+                scheduleRetry();
+            }
+        });
+    }
+
+    const queueCurrentSegment = () => {
+        if (!Number.isFinite(video.duration) || video.duration <= 0) {
+            return;
+        }
+        const current = clamp(video.currentTime || 0, 0, video.duration);
+        enqueueRange(segmentStart, current, current);
+        segmentStart = current;
+    };
+
+    const queueNaturalSegmentBeforeSeek = () => {
+        if (!Number.isFinite(video.duration) || video.duration <= 0) {
+            return;
+        }
+        const naturalEnd = clamp(lastNaturalTime || 0, 0, video.duration);
+        if (naturalEnd > segmentStart + SAVE_EPSILON) {
+            enqueueRange(segmentStart, naturalEnd, naturalEnd);
+        }
+        segmentStart = naturalEnd;
+    };
+
+    const initialiseMetadata = () => {
+        if (metadataInitialised || !Number.isFinite(video.duration) || video.duration <= 0) {
+            return;
+        }
+        const initial = clamp(Number(config.initialPosition) || 0, 0, video.duration);
+        video.currentTime = initial;
+        segmentStart = initial;
+        lastNaturalTime = initial;
+        frontier = Math.max(frontier, initial);
+        lastWall = performance.now();
+        metadataInitialised = true;
+    };
+
+    video.addEventListener('loadedmetadata', initialiseMetadata);
+    // loadedmetadata may already have fired before this AMD module executes.
+    if (video.readyState >= 1) {
+        initialiseMetadata();
+    }
+
+    video.addEventListener('play', () => {
+        lastNaturalTime = video.currentTime;
+        lastWall = performance.now();
+        segmentStart = video.currentTime;
+    });
+
+    video.addEventListener('timeupdate', () => {
+        if (video.seeking || video.paused) {
+            return;
+        }
+        const now = performance.now();
+        const elapsed = Math.max(0.001, (now - lastWall) / 1000);
+        const delta = video.currentTime - lastNaturalTime;
+        if (delta >= -0.25 && delta <= elapsed * 2.0 + 0.75) {
+            frontier = Math.max(frontier, video.currentTime);
+        }
+        lastNaturalTime = video.currentTime;
+        lastWall = now;
+    });
+
+    video.addEventListener('seeking', () => {
+        // Preserve the natural interval watched immediately before any seek. At this
+        // point currentTime may already be the target, so lastNaturalTime is the safe
+        // end of the pre-seek interval.
+        queueNaturalSegmentBeforeSeek();
+
+        if (!config.preventSeeking) {
+            return;
+        }
+        const target = video.currentTime;
+        if (!blockedSeek && target > frontier + Number(config.seekTolerance || 0)) {
+            blockedSeek = true;
+            video.currentTime = frontier;
+            segmentStart = frontier;
+            lastNaturalTime = frontier;
+            showStatus(config.strings.seekblocked);
+        }
+    });
+
+    video.addEventListener('seeked', () => {
+        blockedSeek = false;
+        segmentStart = video.currentTime;
+        lastNaturalTime = video.currentTime;
+        lastWall = performance.now();
+    });
+
+    video.addEventListener('ratechange', () => {
+        if (video.playbackRate !== 1) {
+            video.playbackRate = 1;
+        }
+    });
+
+    video.addEventListener('pause', queueCurrentSegment);
+    video.addEventListener('ended', queueCurrentSegment);
+
+    window.setInterval(() => {
+        if (!video.paused && !video.ended) {
+            queueCurrentSegment();
+        }
+    }, heartbeatMs);
+};

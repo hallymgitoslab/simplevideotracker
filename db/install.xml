@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<XMLDB PATH="mod/simplevideotracker/db" VERSION="2026100300" COMMENT="XMLDB file for mod_simplevideotracker"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:noNamespaceSchemaLocation="../../../lib/xmldb/xmldb.xsd">
+  <TABLES>
+    <TABLE NAME="simplevideotracker" COMMENT="Simple Video Tracker activity instances">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="course" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="name" TYPE="char" LENGTH="255" NOTNULL="true" DEFAULT=""/>
+        <FIELD NAME="intro" TYPE="text" NOTNULL="false"/>
+        <FIELD NAME="introformat" TYPE="int" LENGTH="4" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="videoduration" TYPE="number" LENGTH="12" DECIMALS="3" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="completionpercent" TYPE="int" LENGTH="3" NOTNULL="true" DEFAULT="80"/>
+        <FIELD NAME="preventseeking" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="1"/>
+        <FIELD NAME="seektolerance" TYPE="int" LENGTH="3" NOTNULL="true" DEFAULT="3"/>
+        <FIELD NAME="heartbeat" TYPE="int" LENGTH="3" NOTNULL="true" DEFAULT="5"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="course_fk" TYPE="foreign" FIELDS="course" REFTABLE="course" REFFIELDS="id"/>
+      </KEYS>
+    </TABLE>
+    <TABLE NAME="simplevideotracker_progress" COMMENT="Per-user progress for video tracker activities">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="simplevideotrackerid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="duration" TYPE="number" LENGTH="12" DECIMALS="3" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="alloweduntil" TYPE="number" LENGTH="12" DECIMALS="3" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="lastposition" TYPE="number" LENGTH="12" DECIMALS="3" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="watchedseconds" TYPE="number" LENGTH="12" DECIMALS="3" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="progress" TYPE="number" LENGTH="7" DECIMALS="3" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="completed" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="lastping" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="simplevideotracker_fk" TYPE="foreign" FIELDS="simplevideotrackerid" REFTABLE="simplevideotracker" REFFIELDS="id"/>
+        <KEY NAME="user_fk" TYPE="foreign" FIELDS="userid" REFTABLE="user" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="instance_user_uix" UNIQUE="true" FIELDS="simplevideotrackerid, userid"/>
+        <INDEX NAME="user_ix" UNIQUE="false" FIELDS="userid"/>
+      </INDEXES>
+    </TABLE>
+    <TABLE NAME="simplevideotracker_segments" COMMENT="Merged unique watched ranges for a progress record">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="progressid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="starttime" TYPE="number" LENGTH="12" DECIMALS="3" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="endtime" TYPE="number" LENGTH="12" DECIMALS="3" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="progress_fk" TYPE="foreign" FIELDS="progressid" REFTABLE="simplevideotracker_progress" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="progress_ix" UNIQUE="false" FIELDS="progressid"/>
+      </INDEXES>
+    </TABLE>
+  </TABLES>
+</XMLDB>
