@@ -1,4 +1,4 @@
-# Moodle Simple Video Tracker (`mod_simplevideotracker`)
+# Moodle Simple Video Tracker (mod_simplevideotracker)
 
 Simple Video Tracker is a Moodle 5.2 activity module for serving a single uploaded course video and tracking how much of it each learner has actually watched.
 
@@ -8,25 +8,39 @@ It also provides Web Service functions for creating activities and deploying vid
 
 ## Compatibility
 
-- Moodle: **5.2.x**
-- Component: `mod_simplevideotracker`
-- Version: **1.0.0**
+Moodle: 5.2.x
+
+Component: `mod_simplevideotracker`
+
+Version: 1.0.0
 
 ## Features
 
-- Supports MP4, WebM, OGV/Ogg, and M4V files.
-- Stores the video using Moodle's File API.
-- Resumes playback from the learner's last saved position.
-- Prevents seeking ahead of verified viewing progress.
-- Verifies playback progress on the server through heartbeat requests.
-- Limits credited playback using server-side elapsed time.
-- Merges watched ranges so replaying the same section does not increase progress twice.
-- Supports completion thresholds from 10% to 100%.
-- Includes a progress report for teachers and managers.
-- Provides `mod/simplevideotracker:bypassseek` for users who should be allowed to seek freely.
-- Implements Moodle's Privacy API.
-- Supports Moodle backup and restore, including the uploaded video and optional user progress.
-- Includes Web Service functions for automated activity creation and video deployment.
+Supports MP4, WebM, OGV/Ogg, and M4V files.
+
+Stores the video using Moodle's File API.
+
+Resumes playback from the learner's last saved position.
+
+Prevents seeking ahead of verified viewing progress.
+
+Verifies playback progress on the server through heartbeat requests.
+
+Limits credited playback using server-side elapsed time.
+
+Merges watched ranges so replaying the same section does not increase progress twice.
+
+Supports completion thresholds from 10% to 100%.
+
+Includes a progress report for teachers and managers.
+
+Provides `mod/simplevideotracker:bypassseek` for users who should be allowed to seek freely.
+
+Implements Moodle's Privacy API.
+
+Supports Moodle backup and restore, including the uploaded video and optional user progress.
+
+Includes Web Service functions for automated activity creation and video deployment.
 
 ## Video duration
 
@@ -41,9 +55,7 @@ The trusted duration can be configured by:
 
 For upgraded installations, existing activities receive:
 
-```text
-videoduration = 0
-```
+`videoduration = 0`
 
 Old per-user duration values are not migrated because they were originally supplied by learner browsers.
 
@@ -53,37 +65,35 @@ To update an existing activity, either edit it and enter the video's real durati
 
 ## Installation
 
-1. Copy or extract the plugin into:
+Copy or extract the plugin into:
 
-   ```text
-   moodle/mod/simplevideotracker
-   ```
+`moodle/mod/simplevideotracker`
 
-2. Sign in to Moodle as a site administrator.
+Sign in to Moodle as a site administrator.
 
-3. Open:
+Open:
 
-   **Site administration → Notifications**
+Site administration → Notifications
 
-4. Complete the database upgrade.
+Complete the database upgrade.
 
-5. Add a **Simple Video Tracker** activity to a course.
+Add a Simple Video Tracker activity to a course.
 
-6. Upload a video and enter its duration in seconds.
+Upload a video and enter its duration in seconds.
 
 The distribution ZIP contains `simplevideotracker/` as its top-level directory, so it can also be installed through:
 
-**Site administration → Plugins → Install plugins**
+Site administration → Plugins → Install plugins
 
 ## Recommended settings
 
 A typical configuration is:
 
-- **Prevent seeking beyond verified progress:** enabled
-- **Seek tolerance:** 3 seconds
-- **Heartbeat interval:** 5 seconds
-- **Activity completion:** Require watched progress
-- **Completion threshold:** 80%
+- Prevent seeking beyond verified progress: enabled
+- Seek tolerance: 3 seconds
+- Heartbeat interval: 5 seconds
+- Activity completion: Require watched progress
+- Completion threshold: 80%
 
 The exact values can be adjusted depending on the course.
 
@@ -112,16 +122,19 @@ Required capability:
 
 Parameters:
 
-- `cmid`  
-  Course module ID of the Simple Video Tracker activity.
+### `cmid`
 
-- `draftitemid`  
-  Moodle draft item ID owned by the authenticated caller.
+Course module ID of the Simple Video Tracker activity.
 
-- `duration`  
-  Video duration in seconds.
+### `draftitemid`
 
-The duration must be greater than `0` and no greater than `172800` seconds. Numeric strings produced by common media tools are also accepted.
+Moodle draft item ID owned by the authenticated caller.
+
+### `duration`
+
+Video duration in seconds.
+
+The duration must be greater than 0 and no greater than 172800 seconds. Numeric strings produced by common media tools are also accepted.
 
 The draft area must contain exactly one non-empty video file with one of these extensions:
 
@@ -139,19 +152,25 @@ Replacing the video resets learner progress. Changing only the configured durati
 
 Validation errors are returned with plugin-specific messages where possible.
 
-### Typical deployment flow
+## Typical deployment flow
 
-```text
-mod_simplevideotracker_create_activity
-        ↓
+`mod_simplevideotracker_create_activity`
+
+↓
+
 new CMID
-        ↓
-/webservice/upload.php
-        ↓
-draftitemid + video duration
-        ↓
-mod_simplevideotracker_set_video
-```
+
+↓
+
+`/webservice/upload.php`
+
+↓
+
+`draftitemid + video duration`
+
+↓
+
+`mod_simplevideotracker_set_video`
 
 ## Progress tracking
 
@@ -163,27 +182,9 @@ The server also checks heartbeat timing and limits how much progress can be cred
 
 Users with the following capability are exempt from seek restrictions:
 
-```text
-mod/simplevideotracker:bypassseek
-```
+`mod/simplevideotracker:bypassseek`
 
 This is normally assigned to teachers and managers.
-
-## Security notes
-
-Simple Video Tracker is intended to enforce normal playback progress rules. It is not a DRM system and does not attempt to verify whether the learner is actively paying attention to the video.
-
-The server controls the completion denominator, checks media duration consistency, limits progress using elapsed server time, and can prevent forward seeking beyond verified progress.
-
-As with any browser-based video player, a sufficiently determined user may still reproduce valid playback requests or extract media that the browser is allowed to receive.
-
-If stronger media protection is required, that should be handled separately with infrastructure such as:
-
-- signed HLS or DASH delivery,
-- short-lived media URLs or tokens,
-- controlled media-processing pipelines,
-- DRM-enabled streaming platforms,
-- server-side video analytics.
 
 ## Backup and restore
 
@@ -235,9 +236,7 @@ Run the PHPUnit tests inside a Moodle 5.2 development environment using Moodle's
 
 A small Node-based regression suite is also included for player event and queue behaviour:
 
-```bash
-node tests/js/player_mock_test.js
-```
+`node tests/js/player_mock_test.js`
 
 Run it from the plugin directory.
 
@@ -245,10 +244,10 @@ Run it from the plugin directory.
 
 ### 1.0.0 — 2026-10-03
 
-Initial public release as **Simple Video Tracker** (`mod_simplevideotracker`).
+Initial public release as Simple Video Tracker (`mod_simplevideotracker`).
 
 This release keeps the hardened playback and progress-tracking behaviour from the previous 2.3.3 package.
 
 Web Service activity creation and video deployment are included.
 
-No CDN or object-storage integration is included in this release.
+CDN and object storage integration are planned for the next release.
