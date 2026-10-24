@@ -25,8 +25,8 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = 'mod_simplevideotracker';
-$plugin->version = 2026100300;
-$plugin->requires = 2026042000.00; // Moodle 5.2.
-$plugin->supported = [502, 502];
+$plugin->version = 2026102400;
+$plugin->requires = 2024100700.00; // Moodle 4.5.
+$plugin->supported = [405, 503]; // Moodle 4.5 through 5.3.
 $plugin->maturity = MATURITY_BETA;
-$plugin->release = '1.0.0';
+$plugin->release = '1.0.1';

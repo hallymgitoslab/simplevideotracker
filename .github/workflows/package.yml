@@ -1,0 +1,35 @@
+name: Package Moodle plugin
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out plugin
+        uses: actions/checkout@v4
+      - name: Create Moodle-installable ZIP with correct root folder
+        run: |
+          git archive --format=zip --prefix=simplevideotracker/ HEAD -o mod_simplevideotracker_${GITHUB_REF_NAME}.zip
+          python3 - <<'PY'
+          import glob
+          import zipfile
+          archive = glob.glob('mod_simplevideotracker_*.zip')[0]
+          with zipfile.ZipFile(archive) as z:
+              files = z.namelist()
+              assert files and all(name.startswith('simplevideotracker/') for name in files)
+              assert 'simplevideotracker/version.php' in files
+          PY
+      - name: Upload release ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: moodle-simplevideotracker
+          path: mod_simplevideotracker_*.zip
+          if-no-files-found: error
