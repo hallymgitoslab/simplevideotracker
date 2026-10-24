@@ -51,6 +51,7 @@ final class video_validator_test extends \advanced_testcase {
         $this->resetAfterTest();
 
         $user = $this->getDataGenerator()->create_user();
+        $this->setUser($user);
         $context = \context_user::instance($user->id);
         $draftitemid = file_get_unused_draft_itemid();
         $file = get_file_storage()->create_file_from_string((object)[
@@ -73,6 +74,7 @@ final class video_validator_test extends \advanced_testcase {
         $this->resetAfterTest();
 
         $user = $this->getDataGenerator()->create_user();
+        $this->setUser($user);
         $context = \context_user::instance($user->id);
         $draftitemid = file_get_unused_draft_itemid();
         get_file_storage()->create_file_from_string((object)[
@@ -95,6 +97,7 @@ final class video_validator_test extends \advanced_testcase {
         $this->resetAfterTest();
 
         $user = $this->getDataGenerator()->create_user();
+        $this->setUser($user);
         $context = \context_user::instance($user->id);
         $draftitemid = file_get_unused_draft_itemid();
         $fs = get_file_storage();
@@ -120,6 +123,7 @@ final class video_validator_test extends \advanced_testcase {
         $this->resetAfterTest();
 
         $user = $this->getDataGenerator()->create_user();
+        $this->setUser($user);
         $context = \context_user::instance($user->id);
         $draftitemid = file_get_unused_draft_itemid();
         $file = get_file_storage()->create_file_from_string((object)[
@@ -155,6 +159,7 @@ final class video_validator_test extends \advanced_testcase {
         $this->resetAfterTest();
 
         $user = $this->getDataGenerator()->create_user();
+        $this->setUser($user);
         $draftitemid = file_get_unused_draft_itemid();
 
         try {
