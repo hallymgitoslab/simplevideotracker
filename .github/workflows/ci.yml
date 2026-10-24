@@ -1,0 +1,40 @@
+name: Moodle Plugin CI
+
+on:
+  push:
+    branches: [main, 'fix/**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  moodle-plugin-ci:
+    name: Moodle ${{ matrix.moodle-branch }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        moodle-branch: [MOODLE_405_STABLE, MOODLE_500_STABLE, MOODLE_501_STABLE, MOODLE_502_STABLE, MOODLE_503_STABLE]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mysqli, intl, zip, gd, soap, mbstring, xml
+          coverage: none
+          tools: composer:v2
+      - name: Install Moodle plugin CI
+        run: composer global require moodlehq/moodle-plugin-ci --no-progress
+      - name: Run Moodle plugin checks
+        env:
+          MOODLE_BRANCH: ${{ matrix.moodle-branch }}
+          DB: mysqli
+        run: |
+          export PATH="$HOME/.composer/vendor/bin:$HOME/.config/composer/vendor/bin:$PATH"
+          moodle-plugin-ci install --moodle="$MOODLE_BRANCH" --db-type="$DB" --no-progress
+          moodle-plugin-ci php-lint
+          moodle-plugin-ci phpunit
+          moodle-plugin-ci validate
