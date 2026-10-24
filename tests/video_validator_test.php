@@ -64,7 +64,7 @@ final class video_validator_test extends \advanced_testcase {
         ], 'test video bytes');
 
         $validated = video_validator::validate_draft_item($draftitemid, (int)$user->id);
-        $this->assertSame($file->get_id(), $validated->get_id());
+        $this->assertSame((int)$file->get_id(), (int)$validated->get_id());
     }
 
     /**
@@ -137,7 +137,7 @@ final class video_validator_test extends \advanced_testcase {
         ], 'test video bytes');
 
         $validated = video_validator::validate_draft_item($draftitemid, (int)$user->id);
-        $this->assertSame($file->get_id(), $validated->get_id());
+        $this->assertSame((int)$file->get_id(), (int)$validated->get_id());
     }
 
 
