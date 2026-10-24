@@ -53,7 +53,7 @@ final class external_test extends \advanced_testcase {
 
         $instance = $DB->get_record('simplevideotracker', ['id' => $result['instanceid']], '*', MUST_EXIST);
         $this->assertSame('<p>API introduction</p>', $instance->intro);
-        $this->assertSame(FORMAT_HTML, (int)$instance->introformat);
+        $this->assertSame((int)FORMAT_HTML, (int)$instance->introformat);
         $this->assertEqualsWithDelta(0.0, (float)$instance->videoduration, 0.001);
     }
 
