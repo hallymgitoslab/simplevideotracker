@@ -53,9 +53,17 @@ if ($total > 0) {
     $page = min($page, $lastpage);
 }
 
-$sql = "SELECT p.*, u.firstname, u.lastname, u.email
+// Include only the identity fields the current viewer is authorised to see.
+// The user fields API also handles site-defined custom profile fields.
+$userfields = \core_user\fields::for_identity($context)->with_name();
+$identityfields = $userfields->get_required_fields([\core_user\fields::PURPOSE_IDENTITY]);
+$userfieldssql = $userfields->get_sql('u', true, '', '', false);
+$params = array_merge($params, $userfieldssql->params);
+
+$sql = "SELECT p.*" . ($userfieldssql->selects !== '' ? ", {$userfieldssql->selects}" : '') . "
           FROM {simplevideotracker_progress} p
           JOIN {user} u ON u.id = p.userid
+          {$userfieldssql->joins}
          WHERE p.simplevideotrackerid = :instanceid
       ORDER BY u.lastname, u.firstname, u.id";
 $records = $DB->get_records_sql($sql, $params, $page * $perpage, $perpage);
@@ -81,7 +89,6 @@ echo $OUTPUT->render($pagingbar);
 $table = new html_table();
 $table->head = [
     get_string('user', 'simplevideotracker'),
-    get_string('email', 'simplevideotracker'),
     get_string('progress', 'simplevideotracker'),
     get_string('watched', 'simplevideotracker'),
     get_string('alloweduntil', 'simplevideotracker'),
@@ -89,18 +96,29 @@ $table->head = [
     get_string('completed', 'simplevideotracker'),
     get_string('lastupdated', 'simplevideotracker'),
 ];
+// Identity columns follow showuseridentity and moodle/site:viewuseridentity.
+$identityheadings = [];
+foreach ($identityfields as $field) {
+    if (str_starts_with($field, 'profile_field_')) {
+        $shortname = substr($field, strlen('profile_field_'));
+        $label = $DB->get_field('user_info_field', 'name', ['shortname' => $shortname]);
+        $identityheadings[] = s($label ?: $shortname);
+    } else {
+        $label = get_string_manager()->string_exists($field, 'moodle') ? get_string($field) : $field;
+        $identityheadings[] = s($label);
+    }
+}
+array_splice($table->head, 1, 0, $identityheadings);
 $table->data = [];
 
 foreach ($records as $record) {
-    $user = (object)[
-        'id' => $record->userid,
-        'firstname' => $record->firstname,
-        'lastname' => $record->lastname,
-    ];
     $userurl = new moodle_url('/user/view.php', ['id' => $record->userid, 'course' => $course->id]);
-    $table->data[] = [
-        html_writer::link($userurl, fullname($user)),
-        s($record->email),
+    $identityvalues = [];
+    foreach ($identityfields as $field) {
+        $identityvalues[] = s((string)($record->{$field} ?? ''));
+    }
+    $row = [
+        html_writer::link($userurl, fullname($record)),
         format_float((float)$record->progress, 1) . '%',
         format_time((int)round((float)$record->watchedseconds)),
         format_time((int)round((float)$record->alloweduntil)),
@@ -108,6 +126,8 @@ foreach ($records as $record) {
         !empty($record->completed) ? get_string('yes', 'simplevideotracker') : get_string('no', 'simplevideotracker'),
         userdate((int)$record->timemodified),
     ];
+    array_splice($row, 1, 0, $identityvalues);
+    $table->data[] = $row;
 }
 
 echo html_writer::table($table);
